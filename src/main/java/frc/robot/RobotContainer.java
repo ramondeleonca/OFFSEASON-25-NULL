@@ -11,8 +11,6 @@ import frc.robot.subsystems.EndEffector;
 import frc.robot.subsystems.Intake;
 import frc.robot.subsystems.SwerveChassis;
 import frc.robot.subsystems.SwerveModule;
-import frc.robot.subsystems.Arm.ArmPosition;
-import frc.robot.subsystems.Elevator.ElevatorPosition;
 import frc.robot.subsystems.Gyro.Gyro;
 import frc.robot.subsystems.Gyro.GyroIOPigeon;
 import lib.Elastic;
@@ -23,7 +21,6 @@ import lib.BlueShift.control.CustomController.CustomControllerType;
 import lib.BlueShift.odometry.swerve.BlueShiftOdometry;
 import lib.BlueShift.odometry.vision.camera.LimelightOdometryCamera;
 import lib.BlueShift.odometry.vision.camera.VisionOdometryFilters;
-
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
@@ -36,7 +33,6 @@ import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
-import edu.wpi.first.wpilibj2.command.ParallelCommandGroup;
 import edu.wpi.first.wpilibj2.command.RunCommand;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
@@ -138,6 +134,7 @@ public class RobotContainer {
     // Reset PIDs on enable
     enableTrigger.onTrue(new InstantCommand(() -> {
       elevator.resetPID();
+      arm.resetPID();
     }));
 
     configureBindings();
@@ -153,15 +150,16 @@ public class RobotContainer {
         () -> !DRIVER.bottomButton().getAsBoolean()
       )
     );
-    
-    // DRIVER.povRight().onTrue(elevator.setPostitionCommand(ElevatorPosition.L3));
-    // DRIVER.povLeft().onTrue(elevator.setPostitionCommand(ElevatorPosition.L2));
-    // DRIVER.povDown().onTrue(elevator.setPostitionCommand(ElevatorPosition.L1));
+
+    // * Intake
+    DRIVER.rightButton().onTrue(IntakeCommands.completeIntakeCommand(intake, arm, elevator, endEffector));
+    DRIVER.bottomButton().onTrue(intake.ejectCommand());
+    DRIVER.bottomButton().onFalse(intake.stopCommand());
 
     // ! OPERATOR
     // Algae
-    // TODO: Try without limitswitch
     Trigger algaeMode = OPERATOR.leftTrigger();
+    // OPERATOR.leftButton().and(algaeMode).onTrue(endEffector.intakeAlgaeCommand());
     OPERATOR.leftButton().and(algaeMode).onTrue(new RunCommand(endEffector::intakeAlgae, endEffector));
     OPERATOR.leftButton().and(algaeMode).onFalse(new RunCommand(endEffector::stopAlgae, endEffector));
     OPERATOR.topButton().and(algaeMode).onTrue(new RunCommand(endEffector::outakeAlgae, endEffector));
@@ -172,35 +170,18 @@ public class RobotContainer {
     OPERATOR.leftButton().and(algaeMode.negate()).onFalse(new RunCommand(endEffector::stopCoral, endEffector));
     OPERATOR.topButton().and(algaeMode.negate()).onTrue(new RunCommand(endEffector::outakeCoral, endEffector));
     OPERATOR.topButton().and(algaeMode.negate()).onFalse(new RunCommand(endEffector::stopCoral, endEffector));
-    // OPERATOR.rightButton().onTrue(new ParallelCommandGroup(new RunCommand(intake::startIntake, intake), new RunCommand(endEffector::intakeCoral, endEffector), elevator.setPostitionCommand(ElevatorPosition.INTAKE), arm.setPositionCommand(ArmPosition.INTAKE)));
-    // OPERATOR.rightButton().onFalse(new ParallelCommandGroup(new RunCommand(intake::stop, intake), new RunCommand(endEffector::stopCoral, endEffector)));
-    OPERATOR.rightButton().onTrue(IntakeCommands.completeIntakeCommand(intake, arm, elevator, endEffector));
-    OPERATOR.bottomButton().onTrue(intake.ejectCommand());
-    OPERATOR.bottomButton().onFalse(intake.stopCommand());
 
-    DRIVER.topButton().onTrue(new RunCommand(endEffector::outakeCoral, endEffector));
-    DRIVER.topButton().onFalse(new RunCommand(endEffector::stopCoral, endEffector));
-    DRIVER.leftButton().onTrue(new RunCommand(endEffector::intakeCoral, endEffector));
-    DRIVER.leftButton().onFalse(new RunCommand(endEffector::stopCoral, endEffector));
+    // * SCORING POSITIONS
+    DRIVER.povDown().onTrue(ScoringCommands.setRobotState(RobotState.L1, arm, elevator));
+    DRIVER.povLeft().onTrue(ScoringCommands.setRobotState(RobotState.L2, arm, elevator));
+    DRIVER.povRight().onTrue(ScoringCommands.setRobotState(RobotState.L3, arm, elevator));
+    DRIVER.povUp().onTrue(ScoringCommands.setRobotState(RobotState.L4, arm, elevator));
 
+    // * MANUEL ELEVATOR CONTROL
     DRIVER.leftBumper().onTrue(elevator.setVoltageCommand(-4));
     DRIVER.leftBumper().onFalse(elevator.setVoltageCommand(0));
     DRIVER.rightBumper().onTrue(elevator.setVoltageCommand(4));
     DRIVER.rightBumper().onFalse(elevator.setVoltageCommand(0));
-
-    OPERATOR.povUp().onTrue(ScoringCommands.setRobotState(RobotState.L4, arm, elevator));
-    OPERATOR.povLeft().onTrue(ScoringCommands.setRobotState(RobotState.L3, arm, elevator));
-    OPERATOR.povRight().onTrue(ScoringCommands.setRobotState(RobotState.L2, arm, elevator));
-    OPERATOR.povDown().onTrue(ScoringCommands.setRobotState(RobotState.L1, arm, elevator));
-
-
-    DRIVER.povUp().onTrue(ScoringCommands.setRobotState(RobotState.L4, arm, elevator));
-    DRIVER.povLeft().onTrue(ScoringCommands.setRobotState(RobotState.L3, arm, elevator));
-    DRIVER.povRight().onTrue(ScoringCommands.setRobotState(RobotState.L2, arm, elevator));
-    DRIVER.povDown().onTrue(ScoringCommands.setRobotState(RobotState.L1, arm, elevator));
-
-    // ! TODO: If the command used to set the elevator position doesn't run constantly this will override it
-    // this.elevator.setDefaultCommand(elevator.setPostitionCommand(ElevatorPosition.HOME));
   }
 
   /**

@@ -100,6 +100,10 @@ public class Arm extends SubsystemBase {
   //   pid.setReference(position.in(Rotations), ControlType.kMAXMotionPositionControl);
   // }
 
+  public void resetPID() {
+    pidController.reset(encoder.getPosition());
+  }
+
   public void setPosition(ArmPosition position) {
     setpoint = position;
   }
